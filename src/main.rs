@@ -1,18 +1,14 @@
 use std::io::Error;
-
-use crate::osm_parser::test;
+use crate::osm_parser::Map;
 
 mod osm_parser;
 mod a_star;
 
 fn main() -> Result<(), Error> {
-    let x = test()?;
-    x.map.iter().take(20).for_each(|(id, adj)| {
-        if let Some(node) = x.node_map.get(id) {
-            print!("{:?}", node)
-        }
-        println!(" ::: {:?}", adj)
-    });
-    println!("Done");
+    let map = Map::parse()?;
+    if let Some(node) = map.closest(45.198653799999995, -92.692009) {
+        println!("mhmmm {:?}", node);
+        println!("dist {}", node.dist_miles())
+    }
     Ok(())
 }

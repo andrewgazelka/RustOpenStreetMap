@@ -1,0 +1,38 @@
+\documentclass{article}
+\usepackage{geometry}
+\usepackage[outputdir=cache]{minted} 
+% \geometry{margin=1in}
+
+
+\usepackage{amsmath,amssymb,amsfonts,amsthm} % Related to math
+\usepackage{mdframed, enumitem}
+\setlist[enumerate]{itemsep=0mm} % no spacing bw enumerations
+\usepackage[parfill]{parskip} % new line paragraph style
+\usepackage{tabularx}
+\usepackage{cite} 
+\usepackage{graphicx}
+
+\usepackage{hyperref}
+
+
+
+\title{Research}
+\author{Andrew Gazelka\\ \url{gazel007@umn.edu}}
+\date{\today}
+
+\newcommand{\formatheadingtext}[1]{
+    \textbf{Problem\ #1}:
+}
+
+\newenvironment{newproblem}[1]
+    {\begin{mdframed} \formatheadingtext{#1}\ignorespaces}{\end{mdframed} \vspace{5mm}} 
+\begin{document}
+
+\maketitle
+
+\begin{itemize}
+    \item \href{https://en.wikipedia.org/wiki/Quadtree#:~:text=A%20quadtree%20is%20a%20tree,into%20four%20quadrants%20or%20regions.}{Quadtrees}
+\end{itemize}
+\bibliographystyle{unsrt}
+\bibliography{main}
+\end{document}

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io;
 
@@ -40,42 +41,91 @@ fn process_way(map: &mut HashMap<i64, Vec<i64>>, way: Way) {
     });
 }
 
-pub struct Nodes {
-    pub map: HashMap<i64, Vec<i64>>,
+pub struct Map {
+    pub connections: HashMap<i64, Vec<i64>>,
     pub node_map: HashMap<i64, Node>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Node(f64, f64);
 
+#[derive(Debug)]
+pub struct ClosestResult {
+    id: i64,
+    dist: f64,
+    node: Node,
+}
 
-pub fn test() -> Result<Nodes, io::Error> {
-    let reader = ElementReader::from_path("minnesota-latest.osm.pbf")?;
-    let mut map = HashMap::new();
-    let mut node_map = HashMap::new();
+impl ClosestResult {
+    pub fn dist_miles(&self) -> f64 {
+        self.dist *68.703
+    }
+}
 
-    reader.for_each(|element| {
-        match element {
-            Element::Way(way) => {
-                process_way(&mut map, way)
+impl Map {
+    pub(crate) fn closest(&self, lat: f64, long: f64) -> Option<ClosestResult> {
+        let mut min_id = None;
+        let mut min_val = f64::MAX;
+        self.node_map.iter().for_each(|(id, Node(nlat, nlong))| {
+            let dlat = nlat - lat;
+            let dlong = nlong - long;
+            let num = dlat * dlat + dlong * dlong;
+            if num < min_val {
+                min_val = num;
+                min_id = Some(*id)
             }
-            Element::Node(node) => {
-                let to_insert = Node(node.lon(), node.lat());
-                node_map.insert(node.id(), to_insert);
+        });
+        min_id.map(|id| ClosestResult {
+            id,
+            dist: min_val,
+            node: self.node_map.get(&id).unwrap().clone(),
+        })
+    }
+
+    pub(crate) fn parse() -> Result<Map, io::Error> {
+        let reader = ElementReader::from_path("minnesota-latest.osm.pbf")?;
+        let mut connections = HashMap::new();
+        let mut node_map = HashMap::new();
+
+        reader.for_each(|element| {
+            match element {
+                Element::Way(way) => {
+                    process_way(&mut connections, way)
+                }
+                Element::Node(node) => {
+                    let to_insert = Node(node.lat(), node.lon());
+                    node_map.insert(node.id(), to_insert);
+                }
+
+                Element::DenseNode(node) => {
+                    let to_insert = Node(node.lat(), node.lon());
+                    node_map.insert(node.id, to_insert);
+                }
+                Element::Relation(_) => {} // we do not care about relations
             }
-
-            Element::DenseNode(node) => {
-                let to_insert = Node(node.lon(), node.lat());
-                node_map.insert(node.id, to_insert);
-            }
-            Element::Relation(_) => {} // we do not care about relations
-        }
-    })?;
+        })?;
 
 
-    println!("done");
-    Ok(Nodes {
-        map,
-        node_map,
-    })
+        println!("done");
+        Ok(Map {
+            connections,
+            node_map,
+        })
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+
+    use crate::osm_parser::Map;
+
+    #[test]
+    fn exploration() -> Result<(), io::Error> {
+        let map = Map::parse()?;
+        let node = map.closest(45.198653799999995, -92.692009);
+        println!("mhmmm {:?}", node);
+        Ok(())
+    }
 }
