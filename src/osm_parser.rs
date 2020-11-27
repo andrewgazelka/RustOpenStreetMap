@@ -152,7 +152,6 @@ impl OpenStreetMap {
             }
         })?;
 
-
         println!("done");
         Ok(OpenStreetMap {
             connections,

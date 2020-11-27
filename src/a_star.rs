@@ -40,8 +40,8 @@ fn construct_path(init: i64, map: &HashMap<i64, i64>) -> Vec<i64> {
     vec
 }
 
-pub fn path(map: &OpenStreetMap, initNode: Node, goalNode: Node) -> Option<Vec<i64>> {
-    let goal_loc = &goalNode.location;
+pub fn path(map: &OpenStreetMap, init_node: Node, goal_node: Node) -> Option<Vec<i64>> {
+    let goal_loc = &goal_node.location;
 
     // also is an explored
     let mut g_scores = HashMap::new();
@@ -50,16 +50,16 @@ pub fn path(map: &OpenStreetMap, initNode: Node, goalNode: Node) -> Option<Vec<i
     let mut track = HashMap::new();
 
     // init
-    g_scores.insert(initNode.id, 0f64);
+    g_scores.insert(init_node.id, 0f64);
 
     queue.push(HeapNode {
-        id: initNode.id,
+        id: init_node.id,
         f_score: f64::MAX,
     });
 
     while let Some(origin) = queue.pop() {
         // let origin_node = origin.node;
-        if origin.id == goalNode.id {
+        if origin.id == goal_node.id {
             return Some(construct_path(origin.id, &track));
         }
 
