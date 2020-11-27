@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io;
 
@@ -29,44 +28,90 @@ https://wiki.openstreetmap.org/wiki/PBF_Format#Encoding_OSM_entities_into_filebl
 fn process_way(map: &mut HashMap<i64, Vec<i64>>, way: Way) {
     let refs: Vec<i64> = way.refs().collect();
     refs.iter().for_each(|id| {
-        if let Some(vec) = map.get_mut(id) {
-            refs.iter().for_each(|x|
+        let vec = match map.get_mut(id) {
+            Some(v) => v,
+            None => {
+                let new_vec = Vec::new();
+                map.insert(*id, new_vec); // TODO: better way?
+                map.get_mut(id).unwrap()
+            }
+        };
+
+        refs.iter().for_each(|x|
+            if id != x {
                 vec.push(*x)
-            );
-        } else {
-            // TODO: huh
-            let x = vec![*id];
-            map.insert(*id, x);
-        }
+            }
+        );
+
     });
 }
 
-pub struct Map {
+pub struct OpenStreetMap {
     pub connections: HashMap<i64, Vec<i64>>,
-    pub node_map: HashMap<i64, Node>,
+    pub node_map: HashMap<i64, Location>,
+}
+
+
+#[derive(Debug, Copy, Clone)]
+pub struct Location(pub f64, pub f64);
+
+impl Location {
+    pub fn dist2(&self, other: &Location) -> f64 {
+        let dx = self.0 - other.0;
+        let dy = self.1 - other.1;
+        dx * dx + dy * dy
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Node(f64, f64);
+pub struct Node {
+    pub id: i64,
+    pub location: Location,
+}
+
+impl Node {
+    pub fn dist2(&self, other: &Node) -> f64 {
+        self.location.dist2(&other.location)
+    }
+}
 
 #[derive(Debug)]
 pub struct ClosestResult {
-    id: i64,
-    dist: f64,
-    node: Node,
+    pub dist: f64,
+    pub node: Node,
 }
 
 impl ClosestResult {
     pub fn dist_miles(&self) -> f64 {
-        self.dist *68.703
+        self.dist * 68.703
     }
 }
 
-impl Map {
-    pub(crate) fn closest(&self, lat: f64, long: f64) -> Option<ClosestResult> {
+impl OpenStreetMap {
+    pub fn node_count(&self) -> usize {
+        self.node_map.len()
+    }
+
+    pub fn next_to_id(&self, from_id: i64) -> impl Iterator<Item=Node> + '_ {
+        let conns = self.connections.get(&from_id).unwrap();
+        conns.iter().map(move |id| Node { // TODO what is move
+            location: *self.node_map.get(id).unwrap(),
+            id: *id,
+        })
+    }
+
+    pub fn next_to(&self, node: Node) -> impl Iterator<Item=Node> + '_ {
+        let conns = self.connections.get(&node.id).unwrap();
+        conns.iter().map(move |id| Node { // TODO what is move
+            location: *self.node_map.get(id).unwrap(),
+            id: *id,
+        })
+    }
+
+    pub fn closest(&self, lat: f64, long: f64) -> Option<ClosestResult> {
         let mut min_id = None;
         let mut min_val = f64::MAX;
-        self.node_map.iter().for_each(|(id, Node(nlat, nlong))| {
+        self.node_map.iter().for_each(|(id, Location(nlat, nlong))| {
             let dlat = nlat - lat;
             let dlong = nlong - long;
             let num = dlat * dlat + dlong * dlong;
@@ -76,14 +121,16 @@ impl Map {
             }
         });
         min_id.map(|id| ClosestResult {
-            id,
+            node: Node {
+                id,
+                location: *self.node_map.get(&id).unwrap(),
+            },
             dist: min_val,
-            node: self.node_map.get(&id).unwrap().clone(),
         })
     }
 
-    pub(crate) fn parse() -> Result<Map, io::Error> {
-        let reader = ElementReader::from_path("minnesota-latest.osm.pbf")?;
+    pub(crate) fn parse(name: &str) -> Result<OpenStreetMap, io::Error> {
+        let reader = ElementReader::from_path(name)?;
         let mut connections = HashMap::new();
         let mut node_map = HashMap::new();
 
@@ -93,12 +140,12 @@ impl Map {
                     process_way(&mut connections, way)
                 }
                 Element::Node(node) => {
-                    let to_insert = Node(node.lat(), node.lon());
+                    let to_insert = Location(node.lat(), node.lon());
                     node_map.insert(node.id(), to_insert);
                 }
 
                 Element::DenseNode(node) => {
-                    let to_insert = Node(node.lat(), node.lon());
+                    let to_insert = Location(node.lat(), node.lon());
                     node_map.insert(node.id, to_insert);
                 }
                 Element::Relation(_) => {} // we do not care about relations
@@ -107,7 +154,7 @@ impl Map {
 
 
         println!("done");
-        Ok(Map {
+        Ok(OpenStreetMap {
             connections,
             node_map,
         })
@@ -115,17 +162,17 @@ impl Map {
 }
 
 
-#[cfg(test)]
-mod tests {
-    use std::io;
-
-    use crate::osm_parser::Map;
-
-    #[test]
-    fn exploration() -> Result<(), io::Error> {
-        let map = Map::parse()?;
-        let node = map.closest(45.198653799999995, -92.692009);
-        println!("mhmmm {:?}", node);
-        Ok(())
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use std::io;
+//
+//     use crate::osm_parser::OpenStreetMap;
+//
+//     #[test]
+//     fn exploration() -> Result<(), io::Error> {
+//         let map = OpenStreetMap::parse()?;
+//         let node = map.closest(45.198653799999995, -92.692009);
+//         println!("mhmmm {:?}", node);
+//         Ok(())
+//     }
+// }

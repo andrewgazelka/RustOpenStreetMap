@@ -1,2 +1,4 @@
 /target
-minnesota-latest.osm.pbf
+*.osm
+*.osm.pbf
+*.png
