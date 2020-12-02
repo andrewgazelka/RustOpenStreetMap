@@ -1,10 +1,10 @@
-use std::cmp::{Ordering, Reverse};
+use std::cmp::{Ordering};
 use std::collections::{BinaryHeap, HashMap};
 
-use crate::osm_parser::{Node, OpenStreetMap};
+use crate::osm_parser::{OpenStreetMap};
 
 struct HeapNode {
-    id: i64,
+    id: u32,
     f_score: f64,
 }
 
@@ -28,7 +28,9 @@ impl PartialEq for HeapNode {
 
 impl Eq for HeapNode {}
 
-fn construct_path(init: i64, map: &HashMap<i64, i64>) -> Vec<i64> {
+
+#[allow(dead_code)]
+fn construct_path(init: u32, map: &HashMap<u32, u32>) -> Vec<u32> {
     let mut vec = Vec::new();
     let mut on = &init;
     vec.push(*on);
@@ -40,8 +42,9 @@ fn construct_path(init: i64, map: &HashMap<i64, i64>) -> Vec<i64> {
     vec
 }
 
-pub fn path(map: &OpenStreetMap, init_node: Node, goal_node: Node) -> Option<Vec<i64>> {
-    let goal_loc = &goal_node.location;
+
+#[allow(dead_code)]
+pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Vec<u32>> {
 
     // also is an explored
     let mut g_scores = HashMap::new();
@@ -50,28 +53,30 @@ pub fn path(map: &OpenStreetMap, init_node: Node, goal_node: Node) -> Option<Vec
     let mut track = HashMap::new();
 
     // init
-    g_scores.insert(init_node.id, 0f64);
+    g_scores.insert(init_node, 0f64);
+
+    let goal_loc = map.get(goal_node).location;
 
     queue.push(HeapNode {
-        id: init_node.id,
+        id: init_node,
         f_score: f64::MAX,
     });
 
     while let Some(origin) = queue.pop() {
         // let origin_node = origin.node;
-        if origin.id == goal_node.id {
+        if origin.id == goal_node {
             return Some(construct_path(origin.id, &track));
         }
 
         let origin_id = &origin.id;
         let origin_g_score = g_scores[&origin_id];
 
-        let origin_loc = &map.node_map[origin_id];
+        let origin_loc = map.get(*origin_id).location;
 
         map.next_to_id(origin.id).for_each(|neighbor| {
-            let neighbor_loc = &neighbor.location;
+            let neighbor_loc = map.get(*neighbor).location;
             let tentative_g_score = origin_g_score + neighbor_loc.dist2(origin_loc);
-            match g_scores.get_mut(&neighbor.id) {
+            match g_scores.get_mut(&neighbor) {
                 Some(prev_score) => if tentative_g_score < *prev_score {
                     // println!("less by {}", *prev_score - tentative_g_score);
 
@@ -80,18 +85,17 @@ pub fn path(map: &OpenStreetMap, init_node: Node, goal_node: Node) -> Option<Vec
                     return;
                 }
                 None => {
-                    g_scores.insert(neighbor.id, tentative_g_score);
+                    g_scores.insert(*neighbor, tentative_g_score);
                 }
             };
 
-
-            track.insert(neighbor.id, origin.id);
+            track.insert(*neighbor, *origin_id);
 
             let h_score = goal_loc.dist2(neighbor_loc);
             let f_score = tentative_g_score + h_score;
 
             queue.push(HeapNode {
-                id: neighbor.id,
+                id: *neighbor,
                 f_score,
             })
         })
@@ -109,9 +113,6 @@ mod tests {
     #[test]
     fn queue_min() {
         let mut queue = BinaryHeap::new();
-        // queue.push(7);
-        // queue.push(3);
-        // queue.push(9);
         queue.push(HeapNode {
             id: 1,
             f_score: 7f64,
