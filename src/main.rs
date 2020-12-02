@@ -11,20 +11,21 @@ mod compact_array;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let map = OpenStreetMap::parse("minnesota-latest.osm.pbf")?;
-    let _ = map.get(0);
+    println!("returned with {} nodes", map.node_count());
 
-    // // current loc
-    // let init = map.closest(45.198653799999995, -92.692009).expect("no closest result for init");
+    // current loc
+    let init = map.closest(46.5296, -93.7059).expect("no closest result for init");
 
 
     // jjjjjjj
     // // minneapolis
     // let goal = map.closest(44.9778, -93.2650).expect("no closest result for goal");
+    let goal = map.closest(43.9834, -94.6254).expect("st james oof");
     // 
-    // println!("finding path");
-    // let path = a_star::path(&map, init.id, goal.id).expect("no path found");
+    println!("finding path");
+    let path = a_star::path(&map, init.id, goal.id).expect("no path found");
     // 
-    // println!("found path of length {}", path.len());
+    println!("found path of length {}", path.len());
 
     // 
     // let root = BitMapBackend::new("4.png", (640, 480)).into_drawing_area();

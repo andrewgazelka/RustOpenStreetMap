@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::RandomState;
 use std::io;
 
-use osmpbf::ElementReader;
+use osmpbf::{Element, ElementReader};
 
 use crate::compact_array::{CompactVec, CompactVecIterator};
 
@@ -27,7 +28,14 @@ https://wiki.openstreetmap.org/wiki/PBF_Format#Encoding_OSM_entities_into_filebl
     <nd ref>
 */
 
+
 fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, way: &osmpbf::Way) {
+    let road = way.tags().into_iter().any(|(key, value)| key == "highway");
+
+    if !road {
+        return;
+    }
+
     let refs: Vec<_> = way.refs().map(|real_id| {
         *id_to_idx.get(&real_id).unwrap()
     }).collect();
@@ -48,6 +56,7 @@ fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, w
         let on_idx = refs[i];
         let next_idx = refs[i + 1];
         let node = idx_to_node.get_mut(on_idx as usize).unwrap();
+
         node.connected.push2(prev_idx, next_idx);
     }
 
@@ -142,6 +151,9 @@ impl OpenStreetMap {
         let mut min_id = None;
         let mut min_val = f64::MAX;
         self.idx_to_node.iter().enumerate().for_each(|(id, node)| {
+            if node.connected.len() == 0 { // if there are no direct connections
+                return;
+            }
             let Location(nlat, nlong) = node.location;
             let dlat = nlat - lat;
             let dlong = nlong - long;
@@ -160,16 +172,13 @@ impl OpenStreetMap {
     pub(crate) fn parse(name: &str) -> Result<OpenStreetMap, io::Error> {
         let mut id_to_idx = HashMap::new();
         let mut idx_to_node = Vec::new();
-
         {
             let reader1 = ElementReader::from_path(name)?;
             reader1.for_each(|element| {
                 match element {
-                    osmpbf::Element::Way(way) => {
-                        process_way(&mut id_to_idx, &mut idx_to_node, &way)
-                    }
                     osmpbf::Element::Node(node) => {
-                        id_to_idx.insert(node.id(), idx_to_node.len() as u32);
+                        let id = node.id();
+                        id_to_idx.insert(id, idx_to_node.len() as u32);
                         let location = Location(node.lat(), node.lon());
                         let to_insert = Node {
                             location,
@@ -179,7 +188,8 @@ impl OpenStreetMap {
                     }
 
                     osmpbf::Element::DenseNode(node) => {
-                        id_to_idx.insert(node.id, idx_to_node.len() as u32);
+                        let id = node.id;
+                        id_to_idx.insert(id, idx_to_node.len() as u32);
                         let location = Location(node.lat(), node.lon());
                         let to_insert = Node {
                             location,
@@ -187,7 +197,10 @@ impl OpenStreetMap {
                         };
                         idx_to_node.push(to_insert);
                     }
-                    _ => {} // we do not care about relations
+                    osmpbf::Element::Way(way) => {
+                        process_way(&mut id_to_idx, &mut idx_to_node, &way)
+                    }
+                    _ => {}
                 }
             })?;
         }

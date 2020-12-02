@@ -8,5 +8,4 @@ edition = "2018"
 
 [dependencies]
 osmpbf = "0.2"
-plotters = "^0.3.0"
-ordered-float = "2.0.0"
+rand = "0.7.3"

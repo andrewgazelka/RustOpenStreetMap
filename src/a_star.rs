@@ -52,6 +52,8 @@ pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Vec<u
 
     let mut track = HashMap::new();
 
+    let mut closest = f64::MAX;
+
     // init
     g_scores.insert(init_node, 0f64);
 
@@ -74,7 +76,8 @@ pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Vec<u
         let origin_loc = map.get(*origin_id).location;
 
         map.next_to_id(origin.id).for_each(|neighbor| {
-            let neighbor_loc = map.get(*neighbor).location;
+            let neighbor_node = map.get(*neighbor);
+            let neighbor_loc = neighbor_node.location;
             let tentative_g_score = origin_g_score + neighbor_loc.dist2(origin_loc);
             match g_scores.get_mut(&neighbor) {
                 Some(prev_score) => if tentative_g_score < *prev_score {
@@ -86,12 +89,20 @@ pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Vec<u
                 }
                 None => {
                     g_scores.insert(*neighbor, tentative_g_score);
+                    println!("neighbor {:?}", neighbor_loc)
                 }
             };
 
             track.insert(*neighbor, *origin_id);
 
             let h_score = goal_loc.dist2(neighbor_loc);
+            // if h_score < closest {
+            //     closest = h_score;
+            //     let x : f64 = rand::random();
+            //     if  x < 0.1 {
+            //         println!("closest {}", closest.sqrt() * 69.0)
+            //     }
+            // }
             let f_score = tentative_g_score + h_score;
 
             queue.push(HeapNode {
