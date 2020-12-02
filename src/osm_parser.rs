@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
-use std::collections::hash_map::RandomState;
 use std::io;
 
-use osmpbf::{Element, ElementReader};
+use osmpbf::{ElementReader};
 
 use crate::compact_array::{CompactVec, CompactVecIterator};
 
@@ -30,9 +29,10 @@ https://wiki.openstreetmap.org/wiki/PBF_Format#Encoding_OSM_entities_into_filebl
 
 
 fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, way: &osmpbf::Way) {
-    let road = way.tags().into_iter().any(|(key, value)| key == "highway");
 
-    if !road {
+    let valid = OpenStreetMap::valid_way(way);
+
+    if !valid {
         return;
     }
 
@@ -65,30 +65,6 @@ fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, w
     let last_node = idx_to_node.get_mut(last_idx as usize).unwrap();
     last_node.connected.push(refs[refs.len() - 2])
 
-
-    // for i in 1..(refs.len()-1) {
-    //     let prev_idx = refs[i-1];
-    //     let prev_node = idx_to_node.get_mut(prev_idx as usize).unwrap();
-    //
-    //     let next_idx = refs[i];
-    // }
-
-    // let ref_len = (refs.len() - 1) as u8; // - 1 because no ref to self
-    //
-    // assert!(ref_len > 0); // if this is not true why is this a way
-    //
-    // refs.iter().for_each(|id_a| {
-    //
-    //     let compact_vec = &mut node_a.connected;
-    //
-    //     let mut i_on = compact_vec.len();
-    //     compact_vec.add_len(ref_len);
-    //
-    //     refs.iter().for_each(|id_b| {
-    //         compact_vec.insert(i_on, *id_b);
-    //         i_on += 1;
-    //     });
-    // });
 }
 
 pub struct OpenStreetMap {
@@ -97,6 +73,7 @@ pub struct OpenStreetMap {
 
 
 #[derive(Debug, Copy, Clone)]
+#[repr(packed)]
 pub struct Location(pub f64, pub f64);
 
 impl Location {
@@ -114,6 +91,8 @@ pub struct Node {
 }
 
 impl Node {
+
+    #[allow(dead_code)]
     pub fn dist2(&self, other: &Node) -> f64 {
         let loc = self.location;
         loc.dist2(other.location)
@@ -169,7 +148,28 @@ impl OpenStreetMap {
         })
     }
 
+    #[inline]
+    fn valid_way(way: &osmpbf::Way) -> bool {
+        way.tags().into_iter().any(|(key, _)| key == "highway")
+    }
+
+    pub fn parse_highway_nodes(name: &str) -> Result<HashSet<i64>, io::Error>{
+        let reader = ElementReader::from_path(name)?;
+        let mut valid_nodes = HashSet::new();
+        reader.for_each(|x| if let osmpbf::Element::Way(way) = x {
+            if OpenStreetMap::valid_way(&way) {
+                for r in way.refs() {
+                    valid_nodes.insert(r);
+                }
+            }
+        })?;
+        Ok(valid_nodes)
+    }
+
     pub(crate) fn parse(name: &str) -> Result<OpenStreetMap, io::Error> {
+        println!("first pass");
+        let valid = OpenStreetMap::parse_highway_nodes(name)?;
+        println!("second pass");
         let mut id_to_idx = HashMap::new();
         let mut idx_to_node = Vec::new();
         {
@@ -178,24 +178,28 @@ impl OpenStreetMap {
                 match element {
                     osmpbf::Element::Node(node) => {
                         let id = node.id();
-                        id_to_idx.insert(id, idx_to_node.len() as u32);
-                        let location = Location(node.lat(), node.lon());
-                        let to_insert = Node {
-                            location,
-                            connected: CompactVec::empty(),
-                        };
-                        idx_to_node.push(to_insert);
+                        if valid.contains(&id)  {
+                            id_to_idx.insert(id, idx_to_node.len() as u32);
+                            let location = Location(node.lat() as f64, node.lon() as f64);
+                            let to_insert = Node {
+                                location,
+                                connected: CompactVec::empty(),
+                            };
+                            idx_to_node.push(to_insert);
+                        }
                     }
 
                     osmpbf::Element::DenseNode(node) => {
                         let id = node.id;
-                        id_to_idx.insert(id, idx_to_node.len() as u32);
-                        let location = Location(node.lat(), node.lon());
-                        let to_insert = Node {
-                            location,
-                            connected: CompactVec::empty(),
-                        };
-                        idx_to_node.push(to_insert);
+                        if valid.contains(&id){
+                            id_to_idx.insert(id, idx_to_node.len() as u32);
+                            let location = Location(node.lat() as f64, node.lon() as f64);
+                            let to_insert = Node {
+                                location,
+                                connected: CompactVec::empty(),
+                            };
+                            idx_to_node.push(to_insert);
+                        }
                     }
                     osmpbf::Element::Way(way) => {
                         process_way(&mut id_to_idx, &mut idx_to_node, &way)

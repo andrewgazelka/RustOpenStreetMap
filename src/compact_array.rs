@@ -5,6 +5,10 @@ use std::fmt;
 use std::ops::Index;
 use std::ptr::{NonNull, Unique};
 
+// 196 MB => 1.2GB (times 6.12)
+// 196 MB => 491MB = 2.5
+// => 429MB = 2.1GB .. after 215 (with f32)
+// what to do... graph compression
 #[repr(packed)]
 pub struct CompactVec<T> {
     len: u8,
@@ -113,7 +117,7 @@ impl<T> CompactVec<T> {
         }
     }
 
-
+    #[allow(dead_code)]
     pub fn append(&mut self, vec: Vec<T>) {
         if vec.is_empty() {
             return; // don't append anything
