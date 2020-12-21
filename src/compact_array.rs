@@ -1,5 +1,5 @@
 use core::ptr;
-use std::alloc::{AllocRef, Global, Layout};
+use std::alloc::{Allocator, Global, Layout};
 use std::fmt::{Debug, Formatter};
 use std::fmt;
 use std::ops::Index;
@@ -7,7 +7,7 @@ use std::ptr::{NonNull, Unique};
 
 // 196 MB => 1.2GB (times 6.12)
 // 196 MB => 491MB = 2.5
-// => 429MB = 2.1GB .. after 215 (with f32)
+// => 429MB = 2.1 .. after 215 (with f32)
 // what to do... graph compression
 #[repr(packed)]
 pub struct CompactVec<T> {
@@ -16,25 +16,22 @@ pub struct CompactVec<T> {
     ptr: Unique<T>, // 4
 }
 
-impl<T: Debug> Debug for CompactVec<T> {
+impl<T: 'static +  Debug> Debug for CompactVec<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut x = f.debug_struct("CompactVec");
-        x.field("len", &self.len);
-
-        for i in 0..self.len {
-            let elem = &self[i];
-            x.field("0", elem);
-        }
-        x.finish()
+        let mut lst = f.debug_list();
+        self.iterator().for_each(|x| {
+            lst.entry(x);
+        });
+        lst.finish()
     }
 }
 
 pub struct CompactVecIterator<'a, T: 'static> {
     compact_vec: &'a CompactVec<T>,
-    idx: u8
+    idx: u8,
 }
 
-impl <'a, T> Iterator for CompactVecIterator<'a, T> {
+impl<'a, T> Iterator for CompactVecIterator<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -42,15 +39,15 @@ impl <'a, T> Iterator for CompactVecIterator<'a, T> {
         let idx = self.idx;
         if idx < len {
             let res = &self.compact_vec[idx];
-            self.idx+=1;
-            return Some(res)
+            self.idx += 1;
+            return Some(res);
         }
         None
     }
 }
 
-impl<T> CompactVec<T> {
 
+impl<T> CompactVec<T> {
     pub fn len(&self) -> u8 {
         self.len
     }
@@ -58,16 +55,16 @@ impl<T> CompactVec<T> {
     pub fn iterator(&self) -> CompactVecIterator<T> {
         CompactVecIterator {
             compact_vec: self,
-            idx: 0
+            idx: 0,
         }
     }
 
-    pub fn push(&mut self, elem: T){
+    pub fn push(&mut self, elem: T) {
         self.add_len(1);
         self.insert(self.len - 1, elem);
     }
 
-    pub fn push2(&mut self, elem1: T, elem2: T){
+    pub fn push2(&mut self, elem1: T, elem2: T) {
         self.add_len(2);
         self.insert(self.len - 2, elem1);
         self.insert(self.len - 1, elem2);
@@ -80,6 +77,16 @@ impl<T> CompactVec<T> {
         }
     }
 
+    pub fn from_vec(vec: Vec<T>) -> CompactVec<T> {
+        let len = vec.len() as u8;
+        let mut compact = CompactVec::empty();
+        compact.add_len(len);
+        for (i, elem) in vec.into_iter().enumerate() {
+            compact.insert(i as u8, elem);
+        }
+        compact
+    }
+
     pub fn add_len(&mut self, len: u8) {
         if len == 0 {
             return;
@@ -88,7 +95,7 @@ impl<T> CompactVec<T> {
         let new_layout = Layout::array::<T>(new_len as usize).unwrap();
         let old_len = self.len as usize;
         let ptr = if old_len == 0 {
-            Global.alloc(new_layout)
+            Global.allocate(new_layout)
         } else {
             // init alloc
             let old_layout = Layout::array::<T>(old_len).unwrap();
@@ -153,7 +160,7 @@ impl<T> Drop for CompactVec<T> {
         }
         unsafe {
             let c: NonNull<T> = self.ptr.into();
-            Global.dealloc(c.cast(), Layout::array::<T>(self.len as usize).unwrap());
+            Global.deallocate(c.cast(), Layout::array::<T>(self.len as usize).unwrap());
         }
     }
 }

@@ -1,8 +1,14 @@
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
 use std::io;
+use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
+use std::ptr::read;
 
-use osmpbf::{ElementReader};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use osmpbf::ElementReader;
+use rand::Rng;
 
+use crate::a_star::Path;
 use crate::compact_array::{CompactVec, CompactVecIterator};
 
 /**
@@ -26,10 +32,20 @@ https://wiki.openstreetmap.org/wiki/PBF_Format#Encoding_OSM_entities_into_filebl
   <way
     <nd ref>
 */
+#[repr(packed)]
+#[derive(Debug)]
+pub struct Node {
+    pub connected: CompactVec<u32>,
+    pub location: Location,
+}
+
+struct FatNode {
+    connected: CompactVec<usize>,
+    location: Location,
+}
 
 
 fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, way: &osmpbf::Way) {
-
     let valid = OpenStreetMap::valid_way(way);
 
     if !valid {
@@ -64,7 +80,6 @@ fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, w
 
     let last_node = idx_to_node.get_mut(last_idx as usize).unwrap();
     last_node.connected.push(refs[refs.len() - 2])
-
 }
 
 pub struct OpenStreetMap {
@@ -82,16 +97,17 @@ impl Location {
         let dy = self.1 - other.1;
         dx * dx + dy * dy
     }
-}
 
-#[repr(packed)]
-pub struct Node {
-    pub connected: CompactVec<u32>,
-    pub location: Location,
+    pub fn f32(&self) -> (f32, f32) {
+        (self.0 as f32, self.1 as f32)
+    }
+
+    pub fn f64(&self) -> (f64, f64) {
+        (self.0, self.1)
+    }
 }
 
 impl Node {
-
     #[allow(dead_code)]
     pub fn dist2(&self, other: &Node) -> f64 {
         let loc = self.location;
@@ -112,20 +128,184 @@ impl ClosestResult {
     }
 }
 
+impl Location {
+    pub fn x(&self) -> f64 {
+        self.0
+    }
+
+    pub fn y(&self) -> f64 {
+        self.1
+    }
+}
 
 impl OpenStreetMap {
+    pub fn span(&self) -> (Location, Location) {
+        let mut minx = f64::MAX;
+        let mut miny = f64::MAX;
+        let mut maxx = f64::MIN;
+        let mut maxy = f64::MIN;
+
+        for node in &self.idx_to_node {
+            let Location(x, y) = node.location;
+            if x < minx {
+                minx = x;
+            }
+            if x > maxx {
+                maxx = x;
+            }
+
+            if y < minx {
+                miny = y;
+            }
+            if y > maxy {
+                maxy = y;
+            }
+        }
+
+        (Location(minx - 1.0, miny - 1.0) , Location(maxx + 1.0, maxy + 1.0))
+    }
+
+    pub fn save(&self, name: &str) -> Result<(), io::Error> {
+        let file = File::create(name)?;
+        let mut writer = BufWriter::new(file);
+
+        writer.write_u32::<BigEndian>(self.idx_to_node.len() as u32)?;
+
+
+        for node in &self.idx_to_node {
+            let Location(x, y) = node.location; // 8*2 bytes
+            writer.write_f64::<BigEndian>(x)?;
+            writer.write_f64::<BigEndian>(y)?;
+            let connected_len = node.connected.len(); // 4*connected_len bytes + 1 byte
+            writer.write_u8(connected_len)?;
+            for &i in node.connected.iterator() {
+                writer.write_u32::<BigEndian>(i)?;
+            }
+        }
+        writer.flush()?;
+
+        Ok(())
+    }
+
+    pub fn read_custom_file(name: &str) -> Result<OpenStreetMap, io::Error> {
+        let file = File::open(name)?;
+        let mut reader = BufReader::new(file);
+        let length = reader.read_u32::<BigEndian>()?;
+        let mut idx_to_node = Vec::with_capacity(length as usize);
+        for _ in 0..length {
+            let x = reader.read_f64::<BigEndian>()?;
+            let y = reader.read_f64::<BigEndian>()?;
+            let location = Location(x, y);
+            let connected_len = reader.read_u8()?;
+            let mut vec = Vec::with_capacity(connected_len as usize);
+            for _ in 0..connected_len {
+                let idx = reader.read_u32::<BigEndian>()?;
+                vec.push(idx);
+            }
+            let node = Node {
+                connected: CompactVec::from_vec(vec),
+                location,
+            };
+            idx_to_node.push(node);
+        }
+
+        Ok(OpenStreetMap {
+            idx_to_node
+        })
+    }
+    pub fn trim(&self) -> OpenStreetMap {
+        let mut chosen_from = HashSet::new();
+        let mut origin_map = HashMap::new();
+        for i in 0..self.idx_to_node.len() { // avoids first
+            chosen_from.insert(i as u32);
+        }
+
+        while let Some(id) = chosen_from.iter().next().cloned() {
+            let mut frontier_old = Vec::new();
+            let mut frontier_new = Vec::new();
+            let mut elems = Vec::new();
+            chosen_from.remove(&id);
+            frontier_old.push(id);
+            elems.push(id);
+            while !frontier_old.is_empty() {
+                for frontier_id in frontier_old {
+                    let node = self.get(frontier_id);
+                    node.connected.iterator().for_each(|&new| {
+                        if chosen_from.remove(&new) {
+                            frontier_new.push(new);
+                            elems.push(new);
+                        }
+                    })
+                }
+                frontier_old = frontier_new.drain(0..frontier_new.len()).collect();
+            }
+            origin_map.insert(id, elems);
+        }
+
+        let (_, id_list) = origin_map.into_iter().max_by_key(|(_, v)| v.len()).unwrap();
+
+        println!("combining!");
+        let mut counter = 0;
+
+
+        let old_id_to_new: HashMap<u32, u32> = id_list.iter().map(|&old_id| {
+            let counter_local = counter;
+            counter += 1;
+            (old_id, counter_local)
+        }).collect();
+
+        let mut new_nodes = Vec::new();
+
+        for old_id in id_list {
+            let node = self.get(old_id);
+            let result_vec: Vec<_> = node.connected.iterator().filter_map(|x| {
+                old_id_to_new.get(x).cloned()
+            }).collect();
+
+            assert_ne!(result_vec.len(), 0);
+
+            let compact = CompactVec::from_vec(result_vec);
+            let new_node = Node {
+                connected: compact,
+                location: node.location,
+            };
+            new_nodes.push(new_node);
+        }
+
+        OpenStreetMap {
+            idx_to_node: new_nodes
+        }
+    }
     pub fn get(&self, id: u32) -> &Node {
         self.idx_to_node.get(id as usize).unwrap()
     }
     pub fn node_count(&self) -> usize {
         self.idx_to_node.len()
     }
+    pub fn length_miles(&self, path: &Path) -> f64 {
+        let locations = path.ids.iter().map(|&id| self.get(id).location);
+        let mut prev_loc = None;
+        let mut total = 0.0;
+        for loc in locations {
+            let dx = match prev_loc {
+                Some(prev) => loc.dist2(prev).sqrt() as f64,
+                None => 0.0
+            };
+            prev_loc = Some(loc);
+            total += dx;
+        }
+        total * 68.703
+    }
 
     pub fn next_to_id(&self, from_id: u32) -> CompactVecIterator<'_, u32> {
         self.get(from_id).connected.iterator()
     }
 
-    #[allow(dead_code)]
+    pub fn random(&self) -> (u32, &Node) {
+        let rng = &mut rand::thread_rng();
+        let idx = rng.gen_range(0, self.idx_to_node.len());
+        (idx as u32, &self.idx_to_node[idx])
+    }
     pub fn closest(&self, lat: f64, long: f64) -> Option<ClosestResult> {
         let mut min_id = None;
         let mut min_val = f64::MAX;
@@ -153,9 +333,10 @@ impl OpenStreetMap {
         way.tags().into_iter().any(|(key, _)| key == "highway")
     }
 
-    pub fn parse_highway_nodes(name: &str) -> Result<HashSet<i64>, io::Error>{
+    pub fn parse_highway_nodes(name: &str) -> Result<HashSet<i64>, io::Error> {
         let reader = ElementReader::from_path(name)?;
         let mut valid_nodes = HashSet::new();
+
         reader.for_each(|x| if let osmpbf::Element::Way(way) = x {
             if OpenStreetMap::valid_way(&way) {
                 for r in way.refs() {
@@ -163,72 +344,42 @@ impl OpenStreetMap {
                 }
             }
         })?;
+
         Ok(valid_nodes)
     }
 
-    pub(crate) fn parse(name: &str) -> Result<OpenStreetMap, io::Error> {
-        println!("first pass");
+    pub fn parse(name: &str) -> Result<OpenStreetMap, io::Error> {
         let valid = OpenStreetMap::parse_highway_nodes(name)?;
-        println!("second pass");
         let mut id_to_idx = HashMap::new();
         let mut idx_to_node = Vec::new();
-        {
-            let reader1 = ElementReader::from_path(name)?;
-            reader1.for_each(|element| {
-                match element {
-                    osmpbf::Element::Node(node) => {
-                        let id = node.id();
-                        if valid.contains(&id)  {
-                            id_to_idx.insert(id, idx_to_node.len() as u32);
-                            let location = Location(node.lat() as f64, node.lon() as f64);
-                            let to_insert = Node {
-                                location,
-                                connected: CompactVec::empty(),
-                            };
-                            idx_to_node.push(to_insert);
-                        }
-                    }
 
-                    osmpbf::Element::DenseNode(node) => {
-                        let id = node.id;
-                        if valid.contains(&id){
-                            id_to_idx.insert(id, idx_to_node.len() as u32);
-                            let location = Location(node.lat() as f64, node.lon() as f64);
-                            let to_insert = Node {
-                                location,
-                                connected: CompactVec::empty(),
-                            };
-                            idx_to_node.push(to_insert);
-                        }
-                    }
-                    osmpbf::Element::Way(way) => {
-                        process_way(&mut id_to_idx, &mut idx_to_node, &way)
-                    }
-                    _ => {}
+        let reader = ElementReader::from_path(name)?;
+
+        reader.for_each(|element| {
+            if let Some((id, lat, lon)) = match &element {
+                osmpbf::Element::Node(n) => Some((n.id(), n.lat(), n.lon())),
+                osmpbf::Element::DenseNode(n) => Some((n.id, n.lat(), n.lon())),
+                _ => None
+            } {
+                if valid.contains(&id) {
+                    id_to_idx.insert(id, idx_to_node.len() as u32);
+                    let location = Location(lat, lon);
+                    let to_insert = Node {
+                        location,
+                        connected: CompactVec::empty(),
+                    };
+                    idx_to_node.push(to_insert);
                 }
-            })?;
-        }
+            } else if let osmpbf::Element::Way(way) = &element {
+                process_way(&mut id_to_idx, &mut idx_to_node, &way)
+            }
+        })?;
 
-        println!("returning");
+        // prune
+
 
         Ok(OpenStreetMap {
             idx_to_node,
         })
     }
 }
-
-
-// #[cfg(test)]
-// mod tests {
-//     use std::io;
-//
-//     use crate::osm_parser::OpenStreetMap;
-//
-//     #[test]
-//     fn exploration() -> Result<(), io::Error> {
-//         let map = OpenStreetMap::parse()?;
-//         let node = map.closest(45.198653799999995, -92.692009);
-//         println!("mhmmm {:?}", node);
-//         Ok(())
-//     }
-// }

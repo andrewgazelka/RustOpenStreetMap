@@ -30,21 +30,25 @@ impl Eq for HeapNode {}
 
 
 #[allow(dead_code)]
-fn construct_path(init: u32, map: &HashMap<u32, u32>) -> Vec<u32> {
-    let mut vec = Vec::new();
+fn construct_path(init: u32, map: &HashMap<u32, u32>) -> Path {
+    let mut ids = Vec::new();
     let mut on = &init;
-    vec.push(*on);
+    ids.push(*on);
     while let Some(prev) = map.get(on) {
-        vec.push(*prev);
+        ids.push(*prev);
         on = prev;
     }
-    vec.reverse();
-    vec
+    ids.reverse();
+    Path { ids }
+}
+
+pub struct Path {
+    pub ids: Vec<u32>
 }
 
 
 #[allow(dead_code)]
-pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Vec<u32>> {
+pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path> {
 
     // also is an explored
     let mut g_scores = HashMap::new();
