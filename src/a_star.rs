@@ -1,7 +1,7 @@
-use std::cmp::{Ordering};
+use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
-use crate::osm_parser::{OpenStreetMap};
+use crate::osm_parser::OpenStreetMap;
 
 struct HeapNode {
     id: u32,
@@ -29,8 +29,7 @@ impl PartialEq for HeapNode {
 impl Eq for HeapNode {}
 
 
-#[allow(dead_code)]
-fn construct_path(init: u32, map: &HashMap<u32, u32>) -> Path {
+fn construct_path<'a>(init: u32, map: &HashMap<u32, u32>, osm: &'a OpenStreetMap) -> Path<'a> {
     let mut ids = Vec::new();
     let mut on = &init;
     ids.push(*on);
@@ -39,11 +38,12 @@ fn construct_path(init: u32, map: &HashMap<u32, u32>) -> Path {
         on = prev;
     }
     ids.reverse();
-    Path { ids }
+    Path { ids, parent_map: osm }
 }
 
-pub struct Path {
-    pub ids: Vec<u32>
+pub struct Path<'a> {
+    pub ids: Vec<u32>,
+    pub parent_map: &'a OpenStreetMap,
 }
 
 
@@ -69,7 +69,7 @@ pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path>
     while let Some(origin) = queue.pop() {
         // let origin_node = origin.node;
         if origin.id == goal_node {
-            return Some(construct_path(origin.id, &track));
+            return Some(construct_path(origin.id, &track, map));
         }
 
         let origin_id = &origin.id;
@@ -109,8 +109,8 @@ pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path>
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::BinaryHeap;
+
     use crate::a_star::HeapNode;
 
     #[test]

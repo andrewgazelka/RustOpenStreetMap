@@ -10,6 +10,7 @@ use rand::Rng;
 
 use crate::a_star::Path;
 use crate::compact_array::{CompactVec, CompactVecIterator};
+use std::slice::Iter;
 
 /**
 
@@ -38,12 +39,6 @@ pub struct Node {
     pub connected: CompactVec<u32>,
     pub location: Location,
 }
-
-struct FatNode {
-    connected: CompactVec<usize>,
-    location: Location,
-}
-
 
 fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, way: &osmpbf::Way) {
     let valid = OpenStreetMap::valid_way(way);
@@ -85,7 +80,6 @@ fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, w
 pub struct OpenStreetMap {
     idx_to_node: Vec<Node>,
 }
-
 
 #[derive(Debug, Copy, Clone)]
 #[repr(packed)]
@@ -139,31 +133,6 @@ impl Location {
 }
 
 impl OpenStreetMap {
-    pub fn span(&self) -> (Location, Location) {
-        let mut minx = f64::MAX;
-        let mut miny = f64::MAX;
-        let mut maxx = f64::MIN;
-        let mut maxy = f64::MIN;
-
-        for node in &self.idx_to_node {
-            let Location(x, y) = node.location;
-            if x < minx {
-                minx = x;
-            }
-            if x > maxx {
-                maxx = x;
-            }
-
-            if y < minx {
-                miny = y;
-            }
-            if y > maxy {
-                maxy = y;
-            }
-        }
-
-        (Location(minx - 1.0, miny - 1.0) , Location(maxx + 1.0, maxy + 1.0))
-    }
 
     pub fn save(&self, name: &str) -> Result<(), io::Error> {
         let file = File::create(name)?;
@@ -185,6 +154,10 @@ impl OpenStreetMap {
         writer.flush()?;
 
         Ok(())
+    }
+    
+    pub fn iterator(&self) -> Iter<'_, Node> {
+        self.idx_to_node.iter()
     }
 
     pub fn read_custom_file(name: &str) -> Result<OpenStreetMap, io::Error> {
