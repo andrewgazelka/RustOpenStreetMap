@@ -155,7 +155,7 @@ impl OpenStreetMap {
 
         Ok(())
     }
-    
+
     pub fn iterator(&self) -> Iter<'_, Node> {
         self.idx_to_node.iter()
     }
@@ -254,20 +254,6 @@ impl OpenStreetMap {
     }
     pub fn node_count(&self) -> usize {
         self.idx_to_node.len()
-    }
-    pub fn length_miles(&self, path: &Path) -> f64 {
-        let locations = path.ids.iter().map(|&id| self.get(id).location);
-        let mut prev_loc = None;
-        let mut total = 0.0;
-        for loc in locations {
-            let dx = match prev_loc {
-                Some(prev) => loc.dist2(prev).sqrt() as f64,
-                None => 0.0
-            };
-            prev_loc = Some(loc);
-            total += dx;
-        }
-        total * 68.703
     }
 
     pub fn next_to_id(&self, from_id: u32) -> CompactVecIterator<'_, u32> {

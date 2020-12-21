@@ -46,6 +46,24 @@ pub struct Path<'a> {
     pub parent_map: &'a OpenStreetMap,
 }
 
+impl <'a> Path<'a> {
+    pub fn length_miles(&self) -> f64 {
+        let map = self.parent_map;
+        let locations = self.ids.iter().map(|&id| map.get(id).location);
+        let mut prev_loc = None;
+        let mut total = 0.0;
+        for loc in locations {
+            let dx = match prev_loc {
+                Some(prev) => loc.dist2(prev).sqrt() as f64,
+                None => 0.0
+            };
+            prev_loc = Some(loc);
+            total += dx;
+        }
+        total * 68.703
+    }
+}
+
 
 #[allow(dead_code)]
 pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path> {
