@@ -1,6 +1,5 @@
 /target
 *.osm
 *.osm.pbf
-*.png
 *.csv
 *.save
