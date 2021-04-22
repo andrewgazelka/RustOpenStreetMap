@@ -13,22 +13,20 @@ pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32
     let sender1 = middleman.node_sender.clone();
     let sender2 = middleman.node_sender.clone();
 
-    let cb = crossbeam::scope(|scope| {
-        let forward = scope.spawn(move |_| {
-            bi_path_helper(map, init_node, goal_node, sender1)
+    let mut forward = None;
+    let mut backward= None;
+
+    rayon::scope(|scope| {
+        scope.spawn(|_| {
+            forward= Some(bi_path_helper(map, init_node, goal_node, sender1));
         });
 
-        let backward = scope.spawn(move |_| {
-            bi_path_helper(map, goal_node, init_node, sender2)
+        scope.spawn(|_| {
+            backward= Some(bi_path_helper(map, goal_node, init_node, sender2));
         });
-
-        return (forward.join().unwrap(), backward.join().unwrap());
     });
 
-    let (forward, backward) = match cb {
-        Ok(x) => x,
-        Err(_) => return None
-    };
+    let (forward,backward) = (forward.unwrap(), backward.unwrap());
 
     if let Some(split) = middleman.get_split() {
         let ids = PathConstructor::build_path(&forward, &backward, split);
