@@ -12,17 +12,18 @@ use crate::a_star::Path;
 use crate::bidirectional::bi_astar::a_star_bi;
 use crate::bounds::{Boundable, Bounds};
 use crate::osm_parser::OpenStreetMap;
-use crate::utils::parse_pre_generated;
 
 mod osm_parser;
 mod a_star;
 mod compact_array;
 mod bounds;
-mod utils;
 mod bidirectional;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let map = parse_pre_generated()?;
+    // let map = OpenStreetMap::parse("minnesota-latest.osm.pbf")?;
+    // let map = map.trim(); // to prevent unsolvable paths
+    // map.save("map.save")?;
+    let map = OpenStreetMap::read_custom_file("map.save")?;
 
     let repeat = 1000;
 
@@ -71,7 +72,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::Error>> {
-    let Bounds { from, to } = map.get_bounds();
+    let bounds = map.get_bounds();
+    println!("bounds {:?}", bounds);
+    let Bounds { from, to } = bounds;
 
     let root = BitMapBackend::new("5.png", (1000, 2000)).into_drawing_area();
     root.fill(&WHITE)?;

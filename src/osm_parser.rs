@@ -322,7 +322,7 @@ impl OpenStreetMap {
             } {
                 if valid.contains(&id) {
                     id_to_idx.insert(id, idx_to_node.len() as u32);
-                    let location = Location(lat, lon);
+                    let location = Location(lon, lat);
                     let to_insert = Node {
                         location,
                         connected: CompactVec::empty(),

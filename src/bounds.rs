@@ -1,6 +1,7 @@
 use crate::osm_parser::{Location, OpenStreetMap};
 use crate::a_star::Path;
 
+#[derive(Debug)]
 pub struct Bounds {
     pub from: Location,
     pub to: Location
