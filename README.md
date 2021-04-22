@@ -3,7 +3,6 @@ My final project for CSCI 4511W Artificial Intelligence @ UMN. The program runs 
 
 
 ## Example paths
-Here is an image of generated paths given two random points. Brighter paths took longer to compute
-that darker paths.
+Here is an image of generated paths given two random points and traversed with parallel bi-directional A*.
 
-![Paths](.github/paths.png)
+![Paths](.github/5.png)
