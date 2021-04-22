@@ -3,15 +3,16 @@
 
 use std::time::SystemTime;
 
-use plotters::prelude::{BLACK, ChartBuilder, IntoFont, LineSeries, RED, RGBColor, WHITE, BitMapBackend, Color};
-
-use crate::bidirectional::bi_astar::a_star_bi;
-use crate::utils::parse_pre_generated;
-use plotters::drawing::IntoDrawingArea;
-use crate::osm_parser::OpenStreetMap;
-use crate::bounds::{Boundable, Bounds};
-use crate::a_star::Path;
 use palette::{Hsl, Srgb};
+use plotters::drawing::IntoDrawingArea;
+use plotters::prelude::{BitMapBackend, BLACK, ChartBuilder, Color, IntoFont, LineSeries, RED, RGBColor, WHITE};
+use statrs::statistics::Statistics;
+
+use crate::a_star::Path;
+use crate::bidirectional::bi_astar::a_star_bi;
+use crate::bounds::{Boundable, Bounds};
+use crate::osm_parser::OpenStreetMap;
+use crate::utils::parse_pre_generated;
 
 mod osm_parser;
 mod a_star;
@@ -50,21 +51,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // RELEASE: 3415ms and 20114ms respectively ~5.8x speedup
     println!("total time {} ms", start.elapsed().unwrap().as_millis());
 
-    println!("miles\tns\tinit\tgoal");
-    for (path, time) in &paths {
-        println!("{:.2}\t{}\t{}\t{}", path.length_miles(), time.as_nanos(), path.ids[0], path.ids.last().unwrap());
-    }
 
     let paths: Vec<_> = paths.into_iter().map(|(path, _)| path).collect();
+
+    let mean_miles = paths.iter().map(|path| path.length_miles()).mean();
+    let mean_nodes = paths.iter().map(|path| path.ids.len() as f64).mean();
+
+    println!("mean miles {:.2}mi, mean nodes {:.2} ", mean_miles, mean_nodes);
+
+    // println!("miles\tns\tinit\tgoal");
+    // for (path, time) in &paths {
+    //     println!("{:.2}\t{}\t{}\t{}", path.length_miles(), time.as_nanos(), path.ids[0], path.ids.last().unwrap());
+    // }
+
 
     draw(&map, &paths)?;
 
     Ok(())
 }
 
-fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::Error>>{
-
-    let Bounds{from,to} = map.get_bounds();
+fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::Error>> {
+    let Bounds { from, to } = map.get_bounds();
 
     let root = BitMapBackend::new("5.png", (1000, 2000)).into_drawing_area();
     root.fill(&WHITE)?;
@@ -95,7 +102,6 @@ fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::E
 
     let repeat = paths.len();
     for (i, path) in paths.iter().enumerate() {
-
         let path_points: Vec<_> = path.ids.iter().map(|&id| map.get(id).location.f64()).collect();
 
         let prop = (i as f64) / (repeat as f64);
