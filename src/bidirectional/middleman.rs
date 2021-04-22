@@ -3,6 +3,7 @@ use crate::bidirectional::SimpleNode;
 use std::sync::mpsc;
 use std::thread;
 use crate::bidirectional::path_constructor::PathConstructor;
+use std::collections::HashSet;
 
 pub struct Middleman {
     pub node_sender: Sender<SimpleNode>,

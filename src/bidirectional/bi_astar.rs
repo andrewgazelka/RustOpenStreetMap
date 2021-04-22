@@ -1,25 +1,24 @@
 use std::collections::{BinaryHeap, HashMap};
+use std::sync::mpsc::Sender;
+
 use crate::a_star::{HeapNode, Path};
 use crate::bidirectional::middleman::Middleman;
 use crate::bidirectional::SimpleNode;
-use crate::osm_parser::OpenStreetMap;
 use crate::osm_parser;
-use std::sync::mpsc::Sender;
+use crate::osm_parser::OpenStreetMap;
 
 pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path> {
-
     let middleman = Middleman::new();
 
-    let sender = &middleman.node_sender;
-    let sender1 = sender.clone();
-    let sender2 = sender.clone();
+    let sender1 = middleman.node_sender.clone();
+    let sender2 = middleman.node_sender.clone();
 
     let cb = crossbeam::scope(|scope| {
-        scope.spawn(move |_|{
+        scope.spawn(move |_| {
             bi_path_helper(map, init_node, goal_node, sender1);
         });
 
-        scope.spawn(move |_|{
+        scope.spawn(move |_| {
             bi_path_helper(map, goal_node, init_node, sender2);
         });
     });
@@ -29,10 +28,9 @@ pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32
     }
 
     middleman.get_result().map(|ids| Path {
-            ids,
-            parent_map: map,
-        })
-
+        ids,
+        parent_map: map,
+    })
 }
 
 
@@ -65,7 +63,7 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
 
         let origin_loc = map.get(*origin_id).location;
 
-        map.next_to_id(origin.id).for_each(|neighbor| {
+        for neighbor in map.next_to_id(origin.id) {
             let neighbor_node = map.get(*neighbor);
             let neighbor_loc = neighbor_node.location;
             let tentative_g_score = origin_g_score + neighbor_loc.dist2(origin_loc);
@@ -73,21 +71,27 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
                 Some(prev_score) => if tentative_g_score < *prev_score {
                     *prev_score = tentative_g_score;
                 } else {
-                    return;
+                    continue;
                 }
                 None => {
                     g_scores.insert(*neighbor, tentative_g_score);
                 }
             };
 
-            track.insert(*neighbor, *origin_id);
 
-            let send_result = node_sender.send(SimpleNode {
-                parent: *origin_id,
-                on: *neighbor,
-            });
+            if track.insert(*neighbor, *origin_id).is_none() { // if this is the first time we added to the map
 
-            if send_result.is_err() { return }
+                let send_result = node_sender.send(SimpleNode {
+                    parent: *origin_id,
+                    on: *neighbor,
+                });
+
+                if send_result.is_err() {
+                    return;
+                }
+
+            }
+
 
             let h_score = goal_loc.dist2(neighbor_loc);
             let f_score = tentative_g_score + h_score;
@@ -96,8 +100,6 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
                 id: *neighbor,
                 f_score,
             })
-        })
+        }
     }
-
-    return
 }

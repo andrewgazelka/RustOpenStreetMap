@@ -3,13 +3,11 @@
 
 use std::time::SystemTime;
 
-use palette::{Hsl, Srgb};
-use plotters::drawing::IntoDrawingArea;
-use plotters::prelude::{BitMapBackend, BLACK, ChartBuilder, IntoFont, LineSeries, RED, RGBColor, WHITE};
+use palette::{Srgb};
+use plotters::prelude::{BLACK, ChartBuilder, IntoFont, LineSeries, RED, RGBColor, WHITE};
 
 use crate::bidirectional::bi_astar::a_star_bi;
-use crate::bounds::{Boundable, Bounds};
-use crate::osm_parser::OpenStreetMap;
+use crate::bounds::{Bounds};
 use crate::utils::parse_pre_generated;
 
 mod osm_parser;
@@ -22,7 +20,7 @@ mod bidirectional;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let map = parse_pre_generated()?;
 
-    let repeat = 10;
+    let repeat = 3;
 
     let mut paths = Vec::with_capacity(repeat);
 
