@@ -46,8 +46,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         time = SystemTime::now();
     }
 
-    // 41982ms for 1000
-    println!("total time {:.2} ms", start.elapsed().unwrap().as_millis());
+    // DEBUG: 41982ms for 1000 bi-directional, 193386ms for 1000 regular ... bidirectional is ~4.6x faster
+    // RELEASE: 3415ms and 20114ms respectively ~5.8x speedup
+    println!("total time {} ms", start.elapsed().unwrap().as_millis());
 
     println!("miles\tns\tinit\tgoal");
     for (path, time) in &paths {

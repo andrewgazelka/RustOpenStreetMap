@@ -90,6 +90,7 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
 
                 let send_result = node_sender.send(*neighbor);
 
+                // this will be an error if the send channel has been closed (which means the middle man has found a collision), so we can stop
                 if send_result.is_err() {
                     return track;
                 }
