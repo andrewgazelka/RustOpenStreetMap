@@ -3,7 +3,7 @@ use std::sync::mpsc::Sender;
 
 use crate::a_star::{HeapNode, Path};
 use crate::bidirectional::middleman::Middleman;
-use crate::bidirectional::SimpleNode;
+use crate::bidirectional::path_constructor::PathConstructor;
 use crate::osm_parser;
 use crate::osm_parser::OpenStreetMap;
 
@@ -14,27 +14,36 @@ pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32
     let sender2 = middleman.node_sender.clone();
 
     let cb = crossbeam::scope(|scope| {
-        scope.spawn(move |_| {
-            bi_path_helper(map, init_node, goal_node, sender1);
+        let forward = scope.spawn(move |_| {
+            bi_path_helper(map, init_node, goal_node, sender1)
         });
 
-        scope.spawn(move |_| {
-            bi_path_helper(map, goal_node, init_node, sender2);
+        let backward = scope.spawn(move |_| {
+            bi_path_helper(map, goal_node, init_node, sender2)
         });
+
+        return (forward.join().unwrap(), backward.join().unwrap());
     });
 
-    if cb.is_err() {
-        return None;
+    let (forward, backward) = match cb {
+        Ok(x) => x,
+        Err(_) => return None
+    };
+
+    if let Some(split) = middleman.get_split() {
+        let ids = PathConstructor::build_path(&forward, &backward, split);
+
+        return Some(Path {
+            ids,
+            parent_map: map,
+        });
     }
 
-    middleman.get_result().map(|ids| Path {
-        ids,
-        parent_map: map,
-    })
+    None
 }
 
 
-fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_sender: Sender<SimpleNode>) {
+fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_sender: Sender<u32>) -> HashMap<u32, u32> {
 
     // also is an explored
     let mut g_scores = HashMap::new();
@@ -55,7 +64,7 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
     while let Some(origin) = queue.pop() {
         // let origin_node = origin.node;
         if origin.id == goal_node {
-            return; // Some(construct_path(origin.id, &track, map));
+            return track; // Some(construct_path(origin.id, &track, map));
         }
 
         let origin_id = &origin.id;
@@ -81,15 +90,11 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
 
             if track.insert(*neighbor, *origin_id).is_none() { // if this is the first time we added to the map
 
-                let send_result = node_sender.send(SimpleNode {
-                    parent: *origin_id,
-                    on: *neighbor,
-                });
+                let send_result = node_sender.send(*neighbor);
 
                 if send_result.is_err() {
-                    return;
+                    return track;
                 }
-
             }
 
 
@@ -102,4 +107,5 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
             })
         }
     }
+    track
 }
