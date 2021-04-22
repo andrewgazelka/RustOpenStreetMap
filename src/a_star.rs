@@ -3,9 +3,9 @@ use std::collections::{BinaryHeap, HashMap};
 
 use crate::osm_parser::OpenStreetMap;
 
-struct HeapNode {
-    id: u32,
-    f_score: f64,
+pub struct HeapNode {
+    pub id: u32,
+    pub f_score: f64,
 }
 
 impl Ord for HeapNode {
