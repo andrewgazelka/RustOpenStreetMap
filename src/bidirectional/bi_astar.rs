@@ -14,19 +14,19 @@ pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32
     let sender2 = middleman.node_sender.clone();
 
     let mut forward = None;
-    let mut backward= None;
+    let mut backward = None;
 
     rayon::scope(|scope| {
         scope.spawn(|_| {
-            forward= Some(bi_path_helper(map, init_node, goal_node, sender1));
+            forward = Some(bi_path_helper(map, init_node, goal_node, sender1));
         });
 
         scope.spawn(|_| {
-            backward= Some(bi_path_helper(map, goal_node, init_node, sender2));
+            backward = Some(bi_path_helper(map, goal_node, init_node, sender2));
         });
     });
 
-    let (forward,backward) = (forward.unwrap(), backward.unwrap());
+    let (forward, backward) = (forward.unwrap(), backward.unwrap());
 
     if let Some(split) = middleman.get_split() {
         let ids = PathConstructor::build_path(&forward, &backward, split);
@@ -53,6 +53,9 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
     g_scores.insert(init_node, 0f64);
 
     let goal_loc = map.get(goal_node).location;
+    let init_loc = map.get(init_node).location;
+
+    let init_h_score = goal_loc.dist2(init_loc).sqrt();
 
     queue.push(HeapNode {
         id: init_node,
@@ -86,7 +89,10 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
             };
 
 
-            if track.insert(*neighbor, *origin_id).is_none() { // if this is the first time we added to the map
+            let h_score = goal_loc.dist2(neighbor_loc).sqrt();
+            let unique_add = track.insert(*neighbor, *origin_id).is_none();
+
+            if unique_add { // if this is the first time we added to the map
 
                 let send_result = node_sender.send(*neighbor);
 
@@ -97,7 +103,6 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
             }
 
 
-            let h_score = goal_loc.dist2(neighbor_loc);
             let f_score = tentative_g_score + h_score;
 
             queue.push(HeapNode {

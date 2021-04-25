@@ -112,7 +112,7 @@ pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path>
 
             track.insert(*neighbor, *origin_id);
 
-            let h_score = goal_loc.dist2(neighbor_loc);
+            let h_score = goal_loc.dist2(neighbor_loc).sqrt();
             let f_score = tentative_g_score + h_score;
 
             queue.push(HeapNode {

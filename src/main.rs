@@ -60,11 +60,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("mean miles {:.2}mi, mean nodes {:.2} ", mean_miles, mean_nodes);
 
-    // println!("miles\tns\tinit\tgoal");
-    // for (path, time) in &paths {
-    //     println!("{:.2}\t{}\t{}\t{}", path.length_miles(), time.as_nanos(), path.ids[0], path.ids.last().unwrap());
-    // }
-
 
     draw(&map, &paths)?;
 
@@ -72,9 +67,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::Error>> {
-    let bounds = map.get_bounds();
-    println!("bounds {:?}", bounds);
-    let Bounds { from, to } = bounds;
+
+    let Bounds { from, to } = map.get_bounds();
 
     let root = BitMapBackend::new("5.png", (1000, 2000)).into_drawing_area();
     root.fill(&WHITE)?;
