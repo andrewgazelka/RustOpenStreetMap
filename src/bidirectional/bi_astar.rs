@@ -5,9 +5,10 @@ use crate::a_star::{HeapNode, Path};
 use crate::bidirectional::middleman::Middleman;
 use crate::bidirectional::path_constructor::PathConstructor;
 use crate::osm_parser;
-use crate::osm_parser::OpenStreetMap;
+use crate::osm_parser::{OpenStreetMap, Node};
+use crate::params::Params;
 
-pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path> {
+pub fn a_star_bi<'a>(map: &'a osm_parser::OpenStreetMap, init_node: u32, goal_node: u32, params: &impl Params<Node>) -> Option<Path<'a>> {
     let middleman = Middleman::new();
 
     let sender1 = middleman.node_sender.clone();
@@ -18,11 +19,11 @@ pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32
 
     rayon::scope(|scope| {
         scope.spawn(|_| {
-            forward = Some(bi_path_helper(map, init_node, goal_node, sender1));
+            forward = Some(bi_path_helper(map, init_node, goal_node, sender1, params));
         });
 
         scope.spawn(|_| {
-            backward = Some(bi_path_helper(map, goal_node, init_node, sender2));
+            backward = Some(bi_path_helper(map, goal_node, init_node, sender2, params));
         });
     });
 
@@ -41,7 +42,7 @@ pub fn a_star_bi(map: &osm_parser::OpenStreetMap, init_node: u32, goal_node: u32
 }
 
 
-fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_sender: Sender<u32>) -> HashMap<u32, u32> {
+fn bi_path_helper(map: &OpenStreetMap, init_node_id: u32, goal_node_id: u32, node_sender: Sender<u32>, params: &impl Params<Node>) -> HashMap<u32, u32> {
 
     // also is an explored
     let mut g_scores = HashMap::new();
@@ -50,33 +51,29 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
     let mut track = HashMap::new();
 
     // init
-    g_scores.insert(init_node, 0f64);
+    g_scores.insert(init_node_id, 0f64);
 
-    let goal_loc = map.get(goal_node).location;
-    let init_loc = map.get(init_node).location;
-
-    let init_h_score = goal_loc.dist2(init_loc).sqrt();
+    let goal_node = map.get(goal_node_id);
 
     queue.push(HeapNode {
-        id: init_node,
+        id: init_node_id,
         f_score: f64::MAX,
     });
 
     while let Some(origin) = queue.pop() {
         // let origin_node = origin.node;
-        if origin.id == goal_node {
+        if origin.id == goal_node_id {
             return track; // Some(construct_path(origin.id, &track, map));
         }
 
         let origin_id = &origin.id;
         let origin_g_score = g_scores[&origin_id];
 
-        let origin_loc = map.get(*origin_id).location;
+        let origin_node = map.get(*origin_id);
 
         for neighbor in map.next_to_id(origin.id) {
             let neighbor_node = map.get(*neighbor);
-            let neighbor_loc = neighbor_node.location;
-            let tentative_g_score = origin_g_score + neighbor_loc.dist2(origin_loc);
+            let tentative_g_score = origin_g_score + params.neighbor_dist(origin_node, neighbor_node);
             match g_scores.get_mut(&neighbor) {
                 Some(prev_score) => if tentative_g_score < *prev_score {
                     *prev_score = tentative_g_score;
@@ -89,7 +86,7 @@ fn bi_path_helper(map: &OpenStreetMap, init_node: u32, goal_node: u32, node_send
             };
 
 
-            let h_score = goal_loc.dist2(neighbor_loc).sqrt();
+            let h_score = params.heuristic(&neighbor_node, &goal_node);
             let unique_add = track.insert(*neighbor, *origin_id).is_none();
 
             if unique_add { // if this is the first time we added to the map

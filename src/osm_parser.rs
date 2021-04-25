@@ -86,10 +86,16 @@ pub struct OpenStreetMap {
 pub struct Location(pub f64, pub f64);
 
 impl Location {
+
+    #[inline]
     pub fn dist2(&self, other: Location) -> f64 {
         let dx = self.0 - other.0;
         let dy = self.1 - other.1;
         dx * dx + dy * dy
+    }
+
+    pub fn dist(&self, other: Location) -> f64 {
+        self.dist2(other).sqrt()
     }
 
     pub fn f32(&self) -> (f32, f32) {

@@ -12,12 +12,14 @@ use crate::a_star::Path;
 use crate::bidirectional::bi_astar::a_star_bi;
 use crate::bounds::{Boundable, Bounds};
 use crate::osm_parser::OpenStreetMap;
+use crate::params::SimpleParams;
 
 mod osm_parser;
 mod a_star;
 mod compact_array;
 mod bounds;
 mod bidirectional;
+mod params;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let map = OpenStreetMap::parse("minnesota-latest.osm.pbf")?;
@@ -41,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("path {}", i);
         }
 
-        let path = a_star_bi(&map, init_id, goal_id)
+        let path = a_star_bi(&map, init_id, goal_id, &SimpleParams)
             .unwrap_or_else(|| panic!("no path found between {:?} and {:?}", init, goal));
 
         paths.push((path, time.elapsed().unwrap()));
@@ -67,7 +69,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::Error>> {
-
     let Bounds { from, to } = map.get_bounds();
 
     let root = BitMapBackend::new("5.png", (1000, 2000)).into_drawing_area();
