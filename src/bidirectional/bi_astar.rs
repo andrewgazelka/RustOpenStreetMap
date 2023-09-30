@@ -1,14 +1,22 @@
-use std::collections::{BinaryHeap, HashMap};
-use std::sync::mpsc::Sender;
+use std::{
+    collections::{BinaryHeap, HashMap},
+    sync::mpsc::Sender,
+};
 
-use crate::a_star::{HeapNode, Path};
-use crate::bidirectional::middleman::Middleman;
-use crate::bidirectional::path_constructor::PathConstructor;
-use crate::osm_parser;
-use crate::osm_parser::{OpenStreetMap, Node};
-use crate::params::Params;
+use crate::{
+    a_star::{HeapNode, Path},
+    bidirectional::{middleman::Middleman, path_constructor::PathConstructor},
+    osm_parser,
+    osm_parser::{Node, OpenStreetMap},
+    params::Params,
+};
 
-pub fn a_star_bi<'a>(map: &'a osm_parser::OpenStreetMap, init_node: u32, goal_node: u32, params: &impl Params<Node>) -> Option<Path<'a>> {
+pub fn a_star_bi<'a>(
+    map: &'a osm_parser::OpenStreetMap,
+    init_node: u32,
+    goal_node: u32,
+    params: &impl Params<Node>,
+) -> Option<Path<'a>> {
     let middleman = Middleman::new();
 
     let sender1 = middleman.node_sender.clone();
@@ -41,9 +49,13 @@ pub fn a_star_bi<'a>(map: &'a osm_parser::OpenStreetMap, init_node: u32, goal_no
     None
 }
 
-
-fn bi_path_helper(map: &OpenStreetMap, init_node_id: u32, goal_node_id: u32, node_sender: Sender<u32>, params: &impl Params<Node>) -> HashMap<u32, u32> {
-
+fn bi_path_helper(
+    map: &OpenStreetMap,
+    init_node_id: u32,
+    goal_node_id: u32,
+    node_sender: Sender<u32>,
+    params: &impl Params<Node>,
+) -> HashMap<u32, u32> {
     // also is an explored
     let mut g_scores = HashMap::new();
     let mut queue = BinaryHeap::new();
@@ -73,32 +85,35 @@ fn bi_path_helper(map: &OpenStreetMap, init_node_id: u32, goal_node_id: u32, nod
 
         for neighbor in map.next_to_id(origin.id) {
             let neighbor_node = map.get(*neighbor);
-            let tentative_g_score = origin_g_score + params.neighbor_dist(origin_node, neighbor_node);
+            let tentative_g_score =
+                origin_g_score + params.neighbor_dist(origin_node, neighbor_node);
             match g_scores.get_mut(&neighbor) {
-                Some(prev_score) => if tentative_g_score < *prev_score {
-                    *prev_score = tentative_g_score;
-                } else {
-                    continue;
+                Some(prev_score) => {
+                    if tentative_g_score < *prev_score {
+                        *prev_score = tentative_g_score;
+                    } else {
+                        continue;
+                    }
                 }
                 None => {
                     g_scores.insert(*neighbor, tentative_g_score);
                 }
             };
 
-
             let h_score = params.heuristic(&neighbor_node, &goal_node);
             let unique_add = track.insert(*neighbor, *origin_id).is_none();
 
-            if unique_add { // if this is the first time we added to the map
+            if unique_add {
+                // if this is the first time we added to the map
 
                 let send_result = node_sender.send(*neighbor);
 
-                // this will be an error if the send channel has been closed (which means the middle man has found a collision), so we can stop
+                // this will be an error if the send channel has been closed (which means the
+                // middle man has found a collision), so we can stop
                 if send_result.is_err() {
                     return track;
                 }
             }
-
 
             let f_score = tentative_g_score + h_score;
 

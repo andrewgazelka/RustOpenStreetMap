@@ -4,21 +4,27 @@
 use std::time::SystemTime;
 
 use palette::{Hsl, Srgb};
-use plotters::drawing::IntoDrawingArea;
-use plotters::prelude::{BitMapBackend, BLACK, ChartBuilder, Color, IntoFont, LineSeries, RED, RGBColor, WHITE};
+use plotters::{
+    drawing::IntoDrawingArea,
+    prelude::{
+        BitMapBackend, ChartBuilder, Color, IntoFont, LineSeries, RGBColor, BLACK, RED, WHITE,
+    },
+};
 use statrs::statistics::Statistics;
 
-use crate::a_star::Path;
-use crate::bidirectional::bi_astar::a_star_bi;
-use crate::bounds::{Boundable, Bounds};
-use crate::osm_parser::OpenStreetMap;
-use crate::params::SimpleParams;
+use crate::{
+    a_star::Path,
+    bidirectional::bi_astar::a_star_bi,
+    bounds::{Boundable, Bounds},
+    osm_parser::OpenStreetMap,
+    params::SimpleParams,
+};
 
-mod osm_parser;
 mod a_star;
-mod compact_array;
-mod bounds;
 mod bidirectional;
+mod bounds;
+mod compact_array;
+mod osm_parser;
 mod params;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,18 +56,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         time = SystemTime::now();
     }
 
-    // DEBUG: 41982ms for 1000 bi-directional, 193386ms for 1000 regular ... bidirectional is ~4.6x faster
-    // RELEASE: 3415ms and 20114ms respectively ~5.8x speedup
+    // DEBUG: 41982ms for 1000 bi-directional, 193386ms for 1000 regular ...
+    // bidirectional is ~4.6x faster RELEASE: 3415ms and 20114ms respectively
+    // ~5.8x speedup
     println!("total time {} ms", start.elapsed().unwrap().as_millis());
-
 
     let paths: Vec<_> = paths.into_iter().map(|(path, _)| path).collect();
 
     let mean_miles = paths.iter().map(|path| path.length_miles()).mean();
     let mean_nodes = paths.iter().map(|path| path.ids.len() as f64).mean();
 
-    println!("mean miles {:.2}mi, mean nodes {:.2} ", mean_miles, mean_nodes);
-
+    println!(
+        "mean miles {:.2}mi, mean nodes {:.2} ",
+        mean_miles, mean_nodes
+    );
 
     draw(&map, &paths)?;
 
@@ -87,23 +95,21 @@ fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::E
     println!("built chart");
 
     // Then we can draw a mesh
-    chart
-        .configure_mesh()
-        .x_labels(5)
-        .y_labels(5)
-        .draw()?;
+    chart.configure_mesh().x_labels(5).y_labels(5).draw()?;
 
     print!("built mesh");
-
 
     println!("drawing...");
 
     let repeat = paths.len();
     for (i, path) in paths.iter().enumerate() {
-        let path_points: Vec<_> = path.ids.iter().map(|&id| map.get(id).location.f64()).collect();
+        let path_points: Vec<_> = path
+            .ids
+            .iter()
+            .map(|&id| map.get(id).location.f64())
+            .collect();
 
         let prop = (i as f64) / (repeat as f64);
-
 
         let hsl = Hsl::new(prop * 360.0, 1.0, 0.4);
         let rgb = Srgb::from(hsl);
@@ -116,10 +122,7 @@ fn draw(map: &OpenStreetMap, paths: &[Path]) -> Result<(), Box<dyn std::error::E
         let rgba_color = rgb_color.mix(0.4);
 
         // let rgb_color = RGBColor(red, green, blue);
-        chart.draw_series(LineSeries::new(
-            path_points,
-            &rgba_color,
-        ))?;
+        chart.draw_series(LineSeries::new(path_points, &rgba_color))?;
     }
     Ok(())
 }

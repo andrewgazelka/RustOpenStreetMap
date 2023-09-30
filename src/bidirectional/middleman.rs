@@ -1,8 +1,13 @@
-use std::sync::mpsc::{Sender, Receiver, SendError};
+use std::{
+    collections::HashSet,
+    sync::{
+        mpsc,
+        mpsc::{Receiver, SendError, Sender},
+    },
+    thread,
+};
+
 use crate::bidirectional::SimpleNode;
-use std::sync::mpsc;
-use std::thread;
-use std::collections::HashSet;
 
 pub struct Middleman {
     pub node_sender: Sender<u32>,
@@ -13,7 +18,7 @@ impl Middleman {
     pub fn new() -> Middleman {
         let (send_node, receive_node) = mpsc::channel();
         let (send_vec, receive_vec) = mpsc::channel();
-        
+
         thread::spawn(move || {
             let mut traversed_set = HashSet::new();
 
@@ -31,12 +36,11 @@ impl Middleman {
             vec_receiver: receive_vec,
         }
     }
-    
+
     pub fn get_split(&self) -> Option<u32> {
         match self.vec_receiver.recv() {
             Ok(split_point) => Some(split_point),
-            Err(_) => None
+            Err(_) => None,
         }
     }
-
 }

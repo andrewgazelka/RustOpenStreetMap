@@ -1,10 +1,12 @@
-use crate::osm_parser::{Location, OpenStreetMap};
-use crate::a_star::Path;
+use crate::{
+    a_star::Path,
+    osm_parser::{Location, OpenStreetMap},
+};
 
 #[derive(Debug)]
 pub struct Bounds {
     pub from: Location,
-    pub to: Location
+    pub to: Location,
 }
 
 pub trait Boundable {
@@ -37,12 +39,12 @@ impl Boundable for OpenStreetMap {
 
         Bounds {
             from: Location(minx, miny),
-            to: Location(maxx, maxy)
+            to: Location(maxx, maxy),
         }
     }
 }
 
-impl <'a> Boundable for Path<'a> {
+impl<'a> Boundable for Path<'a> {
     fn get_bounds(&self) -> Bounds {
         let mut minx = f64::MAX;
         let mut miny = f64::MAX;
@@ -67,8 +69,8 @@ impl <'a> Boundable for Path<'a> {
         }
 
         Bounds {
-            from: Location(minx, miny ),
-            to: Location(maxx, maxy)
+            from: Location(minx, miny),
+            to: Location(maxx, maxy),
         }
     }
 }

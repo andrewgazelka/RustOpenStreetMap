@@ -1,5 +1,7 @@
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap},
+};
 
 use crate::osm_parser::OpenStreetMap;
 
@@ -28,7 +30,6 @@ impl PartialEq for HeapNode {
 
 impl Eq for HeapNode {}
 
-
 fn construct_path<'a>(init: u32, map: &HashMap<u32, u32>, osm: &'a OpenStreetMap) -> Path<'a> {
     let mut ids = Vec::new();
     let mut on = &init;
@@ -38,7 +39,10 @@ fn construct_path<'a>(init: u32, map: &HashMap<u32, u32>, osm: &'a OpenStreetMap
         on = prev;
     }
     ids.reverse();
-    Path { ids, parent_map: osm }
+    Path {
+        ids,
+        parent_map: osm,
+    }
 }
 
 pub struct Path<'a> {
@@ -46,7 +50,7 @@ pub struct Path<'a> {
     pub parent_map: &'a OpenStreetMap,
 }
 
-impl <'a> Path<'a> {
+impl<'a> Path<'a> {
     pub fn length_miles(&self) -> f64 {
         let map = self.parent_map;
         let locations = self.ids.iter().map(|&id| map.get(id).location);
@@ -55,7 +59,7 @@ impl <'a> Path<'a> {
         for loc in locations {
             let dx = match prev_loc {
                 Some(prev) => loc.dist2(prev).sqrt() as f64,
-                None => 0.0
+                None => 0.0,
             };
             prev_loc = Some(loc);
             total += dx;
@@ -64,10 +68,8 @@ impl <'a> Path<'a> {
     }
 }
 
-
 #[allow(dead_code)]
 pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path> {
-
     // also is an explored
     let mut g_scores = HashMap::new();
     let mut queue = BinaryHeap::new();
@@ -100,10 +102,12 @@ pub fn path(map: &OpenStreetMap, init_node: u32, goal_node: u32) -> Option<Path>
             let neighbor_loc = neighbor_node.location;
             let tentative_g_score = origin_g_score + neighbor_loc.dist2(origin_loc);
             match g_scores.get_mut(&neighbor) {
-                Some(prev_score) => if tentative_g_score < *prev_score {
-                    *prev_score = tentative_g_score;
-                } else {
-                    return;
+                Some(prev_score) => {
+                    if tentative_g_score < *prev_score {
+                        *prev_score = tentative_g_score;
+                    } else {
+                        return;
+                    }
                 }
                 None => {
                     g_scores.insert(*neighbor, tentative_g_score);
@@ -147,7 +151,6 @@ mod tests {
         queue.push(HeapNode {
             id: 3,
             f_score: 9f64,
-
         });
         assert_eq!(2, queue.pop().unwrap().id);
         assert_eq!(1, queue.pop().unwrap().id);

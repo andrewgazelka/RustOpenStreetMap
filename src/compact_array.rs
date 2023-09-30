@@ -1,9 +1,11 @@
 use core::ptr;
-use std::alloc::{Allocator, Global, Layout};
-use std::fmt::{Debug, Formatter};
-use std::fmt;
-use std::ops::Index;
-use std::ptr::{NonNull, Unique};
+use std::{
+    alloc::{Allocator, Global, Layout},
+    fmt,
+    fmt::{Debug, Formatter},
+    ops::Index,
+    ptr::{NonNull, Unique},
+};
 
 // 196 MB => 1.2GB (times 6.12)
 // 196 MB => 491MB = 2.5
@@ -16,7 +18,7 @@ pub struct CompactVec<T> {
     ptr: Unique<T>, // 4
 }
 
-impl<T: 'static +  Debug> Debug for CompactVec<T> {
+impl<T: 'static + Debug> Debug for CompactVec<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut lst = f.debug_list();
         self.iterator().for_each(|x| {
@@ -45,7 +47,6 @@ impl<'a, T> Iterator for CompactVecIterator<'a, T> {
         None
     }
 }
-
 
 impl<T> CompactVec<T> {
     pub fn len(&self) -> u8 {
@@ -100,14 +101,11 @@ impl<T> CompactVec<T> {
             // init alloc
             let old_layout = Layout::array::<T>(old_len).unwrap();
             let c: NonNull<T> = self.ptr.into();
-            unsafe {
-                Global.grow(c.cast(), old_layout, new_layout)
-            }
-        }.unwrap();
+            unsafe { Global.grow(c.cast(), old_layout, new_layout) }
+        }
+        .unwrap();
 
-        self.ptr = unsafe {
-            Unique::new_unchecked(ptr.as_ptr() as *mut _)
-        };
+        self.ptr = unsafe { Unique::new_unchecked(ptr.as_ptr() as *mut _) };
 
         self.len = new_len;
     }

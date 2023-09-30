@@ -1,38 +1,39 @@
-use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io;
-use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
-use std::ptr::read;
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    io,
+    io::{BufReader, BufWriter, Seek, SeekFrom, Write},
+    ptr::read,
+    slice::Iter,
+};
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use osmpbf::ElementReader;
 use rand::Rng;
 
-use crate::a_star::Path;
-use crate::compact_array::{CompactVec, CompactVecIterator};
-use std::slice::Iter;
+use crate::{
+    a_star::Path,
+    compact_array::{CompactVec, CompactVecIterator},
+};
 
-/**
-
-Nodes, ways, etc.
-https://labs.mapbox.com/mapping/osm-data-model/#:~:text=Attributes%20are%20described%20as%20tags,that%20represent%20a%20larger%20whole.
-
-OSM XML
-https://wiki.openstreetmap.org/wiki/OSM_XML
-
-File Formats
-https://osmcode.org/file-formats-manual/
-    PBF
-
-https://download.geofabrik.de/north-america/us/minnesota.html
-
-https://wiki.openstreetmap.org/wiki/PBF_Format#Encoding_OSM_entities_into_fileblocks
-
-<osm>
-  <node id lat lon>
-  <way
-    <nd ref>
-*/
+/// Nodes, ways, etc.
+/// https://labs.mapbox.com/mapping/osm-data-model/#:~:text=Attributes%20are%20described%20as%20tags,that%20represent%20a%20larger%20whole.
+///
+/// OSM XML
+/// https://wiki.openstreetmap.org/wiki/OSM_XML
+///
+/// File Formats
+/// https://osmcode.org/file-formats-manual/
+/// PBF
+///
+/// https://download.geofabrik.de/north-america/us/minnesota.html
+///
+/// https://wiki.openstreetmap.org/wiki/PBF_Format#Encoding_OSM_entities_into_fileblocks
+///
+/// <osm>
+/// <node id lat lon>
+/// <way
+/// <nd ref>
 #[repr(packed)]
 #[derive(Debug)]
 pub struct Node {
@@ -47,9 +48,10 @@ fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, w
         return;
     }
 
-    let refs: Vec<_> = way.refs().map(|real_id| {
-        *id_to_idx.get(&real_id).unwrap()
-    }).collect();
+    let refs: Vec<_> = way
+        .refs()
+        .map(|real_id| *id_to_idx.get(&real_id).unwrap())
+        .collect();
 
     if refs.len() <= 1 {
         return;
@@ -58,7 +60,6 @@ fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, w
     let first_idx = *refs.first().unwrap();
 
     let first_node = idx_to_node.get_mut(first_idx as usize).unwrap();
-
 
     first_node.connected.push(refs[1]);
 
@@ -86,7 +87,6 @@ pub struct OpenStreetMap {
 pub struct Location(pub f64, pub f64);
 
 impl Location {
-
     #[inline]
     pub fn dist2(&self, other: Location) -> f64 {
         let dx = self.0 - other.0;
@@ -139,13 +139,11 @@ impl Location {
 }
 
 impl OpenStreetMap {
-
     pub fn save(&self, name: &str) -> Result<(), io::Error> {
         let file = File::create(name)?;
         let mut writer = BufWriter::new(file);
 
         writer.write_u32::<BigEndian>(self.idx_to_node.len() as u32)?;
-
 
         for node in &self.idx_to_node {
             let Location(x, y) = node.location; // 8*2 bytes
@@ -188,14 +186,13 @@ impl OpenStreetMap {
             idx_to_node.push(node);
         }
 
-        Ok(OpenStreetMap {
-            idx_to_node
-        })
+        Ok(OpenStreetMap { idx_to_node })
     }
     pub fn trim(&self) -> OpenStreetMap {
         let mut chosen_from = HashSet::new();
         let mut origin_map = HashMap::new();
-        for i in 0..self.idx_to_node.len() { // avoids first
+        for i in 0..self.idx_to_node.len() {
+            // avoids first
             chosen_from.insert(i as u32);
         }
 
@@ -226,20 +223,24 @@ impl OpenStreetMap {
         println!("combining!");
         let mut counter = 0;
 
-
-        let old_id_to_new: HashMap<u32, u32> = id_list.iter().map(|&old_id| {
-            let counter_local = counter;
-            counter += 1;
-            (old_id, counter_local)
-        }).collect();
+        let old_id_to_new: HashMap<u32, u32> = id_list
+            .iter()
+            .map(|&old_id| {
+                let counter_local = counter;
+                counter += 1;
+                (old_id, counter_local)
+            })
+            .collect();
 
         let mut new_nodes = Vec::new();
 
         for old_id in id_list {
             let node = self.get(old_id);
-            let result_vec: Vec<_> = node.connected.iterator().filter_map(|x| {
-                old_id_to_new.get(x).cloned()
-            }).collect();
+            let result_vec: Vec<_> = node
+                .connected
+                .iterator()
+                .filter_map(|x| old_id_to_new.get(x).cloned())
+                .collect();
 
             assert_ne!(result_vec.len(), 0);
 
@@ -252,7 +253,7 @@ impl OpenStreetMap {
         }
 
         OpenStreetMap {
-            idx_to_node: new_nodes
+            idx_to_node: new_nodes,
         }
     }
     pub fn get(&self, id: u32) -> &Node {
@@ -275,7 +276,8 @@ impl OpenStreetMap {
         let mut min_id = None;
         let mut min_val = f64::MAX;
         self.idx_to_node.iter().enumerate().for_each(|(id, node)| {
-            if node.connected.len() == 0 { // if there are no direct connections
+            if node.connected.len() == 0 {
+                // if there are no direct connections
                 return;
             }
             let Location(nlat, nlong) = node.location;
@@ -302,10 +304,12 @@ impl OpenStreetMap {
         let reader = ElementReader::from_path(name)?;
         let mut valid_nodes = HashSet::new();
 
-        reader.for_each(|x| if let osmpbf::Element::Way(way) = x {
-            if OpenStreetMap::valid_way(&way) {
-                for r in way.refs() {
-                    valid_nodes.insert(r);
+        reader.for_each(|x| {
+            if let osmpbf::Element::Way(way) = x {
+                if OpenStreetMap::valid_way(&way) {
+                    for r in way.refs() {
+                        valid_nodes.insert(r);
+                    }
                 }
             }
         })?;
@@ -324,7 +328,7 @@ impl OpenStreetMap {
             if let Some((id, lat, lon)) = match &element {
                 osmpbf::Element::Node(n) => Some((n.id(), n.lat(), n.lon())),
                 osmpbf::Element::DenseNode(n) => Some((n.id, n.lat(), n.lon())),
-                _ => None
+                _ => None,
             } {
                 if valid.contains(&id) {
                     id_to_idx.insert(id, idx_to_node.len() as u32);
@@ -342,9 +346,6 @@ impl OpenStreetMap {
 
         // prune
 
-
-        Ok(OpenStreetMap {
-            idx_to_node,
-        })
+        Ok(OpenStreetMap { idx_to_node })
     }
 }
