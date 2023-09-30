@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::{Debug, Formatter},
     fs::File,
     io,
     io::{BufReader, BufWriter, Seek, SeekFrom, Write},
@@ -35,10 +36,18 @@ use crate::{
 /// <way
 /// <nd ref>
 #[repr(packed)]
-#[derive(Debug)]
 pub struct Node {
     pub connected: CompactVec<u32>,
     pub location: Location,
+}
+
+impl Debug for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field("connected", &self.connected)
+            .field("location", &self.location)
+            .finish()
+    }
 }
 
 fn process_way(id_to_idx: &mut HashMap<i64, u32>, idx_to_node: &mut Vec<Node>, way: &osmpbf::Way) {
